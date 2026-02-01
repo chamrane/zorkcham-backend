@@ -175,6 +175,30 @@ app.get("/search-ladder", async (req, res) => {
   }
 });
 
+// DEBUG: tester l'endpoint rankings directement
+app.get("/debug-rankings", async (req, res) => {
+  try {
+    if (!CLASH_API_TOKEN) {
+      return res.status(500).json({ error: "CLASH_API_TOKEN is not set" });
+    }
+
+    const url = "https://api.clashroyale.com/v1/locations/global/rankings/players?limit=10";
+
+    const response = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${CLASH_API_TOKEN}`
+      }
+    });
+
+    res.json(response.data);
+  } catch (err) {
+    console.error("Erreur debug-rankings:", err.response?.data || err.message);
+    res
+      .status(err.response?.status || 500)
+      .json(err.response?.data || { error: err.message || "Unknown error" });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`ZorkCham backend listening on port ${PORT}`);
 });
