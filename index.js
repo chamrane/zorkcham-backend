@@ -116,10 +116,24 @@ app.get("/scrape-ladder", async (req, res) => {
     const $ = cheerio.load(response.data);
     const players = [];
 
-    $('tr').each((i, elem) => {
-      const name = $(elem).find('.player_name').text().trim();
-      const tag = $(elem).find('.player_tag').text().trim();
-      const trophiesText = $(elem).find('.trophies').text().trim();
+    // Parcourir toutes les lignes du tableau (rows)
+    $('div[role="row"]').each((i, elem) => {
+      const cells = $(elem).find('div[role="gridcell"]');
+      
+      if (cells.length < 3) return; // pas assez de cellules
+      
+      // Le nom est dans un lien
+      const nameLink = $(elem).find('a').first();
+      const name = nameLink.text().trim();
+      
+      // Le tag est dans l'attribut href du lien (format /player/TAG)
+      const href = nameLink.attr('href') || '';
+      const tagMatch = href.match(/\/player\/([A-Z0-9]+)/);
+      const tag = tagMatch ? '#' + tagMatch[1] : '';
+      
+      // Les trophées sont dans la dernière cellule
+      const lastCell = cells.last();
+      const trophiesText = lastCell.text().trim();
       const trophies = parseInt(trophiesText.replace(/,/g, ''), 10);
 
       if (name && tag && !isNaN(trophies)) {
