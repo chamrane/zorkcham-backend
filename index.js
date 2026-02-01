@@ -182,7 +182,7 @@ app.get("/debug-rankings", async (req, res) => {
       return res.status(500).json({ error: "CLASH_API_TOKEN is not set" });
     }
 
-    const url = "https://api.clashroyale.com/v1/locations/57000006/rankings/players?limit=10";
+    const url = "https://api.clashroyale.com/v1/locations/57000000/rankings/players?limit=10";
 
     const response = await axios.get(url, {
       headers: {
