@@ -1,6 +1,8 @@
 import express from "express";
 import axios from "axios";
 import cors from "cors";
+import * as cheerio from "cheerio";
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -221,6 +223,66 @@ app.get("/debug-locations", async (req, res) => {
     res
       .status(err.response?.status || 500)
       .json(err.response?.data || { error: err.message || "Unknown error" });
+  }
+});
+
+// Scrape le ladder de RoyaleAPI et filtre par elo
+// GET /scrape-ladder?elo=2664
+app.get("/scrape-ladder", async (req, res) => {
+  try {
+    const { elo } = req.query;
+    
+    if (!elo) {
+      return res.status(400).json({
+        error: "Provide 'elo' as query parameter (e.g., ?elo=2664)"
+      });
+    }
+
+    const targetElo = parseInt(elo, 10);
+    if (isNaN(targetElo)) {
+      return res.status(400).json({
+        error: "'elo' must be a valid number"
+      });
+    }
+
+    // On va sur la page du ladder de RoyaleAPI
+    const url = "https://royaleapi.com/players/ladder";
+    
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    const $ = cheerio.load(response.data);
+    const players = [];
+
+    // On cherche les éléments HTML qui contiennent les joueurs
+    // (cette partie dépend de la structure HTML de RoyaleAPI, on va l'adapter après test)
+    $('tr').each((i, elem) => {
+      const name = $(elem).find('.player_name').text().trim();
+      const tag = $(elem).find('.player_tag').text().trim();
+      const trophiesText = $(elem).find('.trophies').text().trim();
+      const trophies = parseInt(trophiesText.replace(/,/g, ''), 10);
+
+      if (name && tag && !isNaN(trophies)) {
+        players.push({ name, tag, trophies });
+      }
+    });
+
+    // Filtrer par Elo (±10)
+    const matches = players.filter(p => Math.abs(p.trophies - targetElo) <= 10);
+
+    res.json({
+      count: matches.length,
+      totalScanned: players.length,
+      players: matches
+    });
+  } catch (err) {
+    console.error("Erreur scrape-ladder:", err.message);
+    res
+      .status(500)
+      .json({ error: "Failed to scrape ladder: " + err.message });
   }
 });
 
