@@ -99,15 +99,10 @@ app.get("/last-deck-by-tag", async (req, res) => {
   }
 });
 
-// recherche dans le ladder (top joueurs) par pseudo et/ou trophées (elo)
 // recherche dans le ladder (top joueurs) par elo (path of legend)
 // GET /search-ladder?elo=2664
 app.get("/search-ladder", async (req, res) => {
   try {
-    if (!CLASH_API_TOKEN) {
-      return res.status(500).json({ error: "CLASH_API_TOKEN is not set" });
-    }
-
     const { elo } = req.query;
     
     if (!elo) {
@@ -123,17 +118,17 @@ app.get("/search-ladder", async (req, res) => {
       });
     }
 
-    // on appelle RoyaleAPI pour récupérer le top ladder en Elo
-    const url = "https://royaleapi.com/api/top/players";
+    // on appelle l'endpoint public de RoyaleAPI pour le ladder
+    const url = "https://api.royaleapi.com/v1/top/players";
 
     const response = await axios.get(url);
 
     const players = response.data || [];
 
-    // on filtre ceux qui ont exactement cet Elo (ou très proche, ±5)
+    // on filtre ceux qui ont exactement cet Elo (ou très proche, ±10)
     const matches = players.filter(p => {
-      const playerElo = p.league?.trophies || p.trophies || 0;
-      return Math.abs(playerElo - targetElo) <= 5;
+      const playerElo = p.currentPathOfLegendSeason?.trophies || p.trophies || 0;
+      return Math.abs(playerElo - targetElo) <= 10;
     });
 
     res.json({
@@ -142,14 +137,14 @@ app.get("/search-ladder", async (req, res) => {
         name: p.name,
         tag: p.tag,
         rank: p.rank,
-        elo: p.league?.trophies || p.trophies || 0
+        elo: p.currentPathOfLegendSeason?.trophies || p.trophies || 0
       }))
     });
   } catch (err) {
     console.error("Erreur search-ladder:", err.message);
     res
       .status(500)
-      .json({ error: "Failed to fetch ladder data" });
+      .json({ error: "Failed to fetch ladder data: " + err.message });
   }
 });
 app.listen(PORT, () => {
