@@ -99,10 +99,14 @@ app.get("/last-deck-by-tag", async (req, res) => {
   }
 });
 
-// recherche dans le ladder (top joueurs) par elo (path of legend)
+// recherche dans le ladder (top joueurs Path of Legend) par elo
 // GET /search-ladder?elo=2664
 app.get("/search-ladder", async (req, res) => {
   try {
+    if (!CLASH_API_TOKEN) {
+      return res.status(500).json({ error: "CLASH_API_TOKEN is not set" });
+    }
+
     const { elo } = req.query;
     
     if (!elo) {
@@ -118,17 +122,20 @@ app.get("/search-ladder", async (req, res) => {
       });
     }
 
-    // on appelle l'endpoint public de RoyaleAPI pour le ladder
-    const url = "https://api.royaleapi.com/v1/top/players";
+    // on appelle l'API Clash Royale pour le classement Path of Legend
+    const url = "https://api.clashroyale.com/v1/locations/global/pathoflegend/players";
 
-    const response = await axios.get(url);
+    const response = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${CLASH_API_TOKEN}`
+      }
+    });
 
-    const players = response.data || [];
+    const players = response.data?.items || [];
 
     // on filtre ceux qui ont exactement cet Elo (ou très proche, ±10)
     const matches = players.filter(p => {
-      const playerElo = p.currentPathOfLegendSeason?.trophies || p.trophies || 0;
-      return Math.abs(playerElo - targetElo) <= 10;
+      return Math.abs(p.trophies - targetElo) <= 10;
     });
 
     res.json({
@@ -137,16 +144,17 @@ app.get("/search-ladder", async (req, res) => {
         name: p.name,
         tag: p.tag,
         rank: p.rank,
-        elo: p.currentPathOfLegendSeason?.trophies || p.trophies || 0
+        elo: p.trophies
       }))
     });
   } catch (err) {
-    console.error("Erreur search-ladder:", err.message);
+    console.error("Erreur search-ladder:", err.response?.data || err.message);
     res
-      .status(500)
-      .json({ error: "Failed to fetch ladder data: " + err.message });
+      .status(err.response?.status || 500)
+      .json(err.response?.data || { error: "Unknown error" });
   }
 });
+
 app.listen(PORT, () => {
   console.log(`ZorkCham backend listening on port ${PORT}`);
 });
