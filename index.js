@@ -245,8 +245,8 @@ app.get("/scrape-ladder", async (req, res) => {
       });
     }
 
-    // On va sur la page du ladder de RoyaleAPI
-    const url = "https://royaleapi.com/players/ladder";
+    // On va sur la bonne page du ladder de RoyaleAPI
+    const url = "https://royaleapi.com/players/leaderboard";
     
     const response = await axios.get(url, {
       headers: {
@@ -256,6 +256,35 @@ app.get("/scrape-ladder", async (req, res) => {
 
     const $ = cheerio.load(response.data);
     const players = [];
+
+    // On cherche les éléments HTML qui contiennent les joueurs
+    // (on va devoir inspecter la page pour trouver les bons sélecteurs)
+    $('tr').each((i, elem) => {
+      const name = $(elem).find('.player_name').text().trim();
+      const tag = $(elem).find('.player_tag').text().trim();
+      const trophiesText = $(elem).find('.trophies').text().trim();
+      const trophies = parseInt(trophiesText.replace(/,/g, ''), 10);
+
+      if (name && tag && !isNaN(trophies)) {
+        players.push({ name, tag, trophies });
+      }
+    });
+
+    // Filtrer par Elo (±10)
+    const matches = players.filter(p => Math.abs(p.trophies - targetElo) <= 10);
+
+    res.json({
+      count: matches.length,
+      totalScanned: players.length,
+      players: matches
+    });
+  } catch (err) {
+    console.error("Erreur scrape-ladder:", err.message);
+    res
+      .status(500)
+      .json({ error: "Failed to scrape ladder: " + err.message });
+  }
+});
 
     // On cherche les éléments HTML qui contiennent les joueurs
     // (cette partie dépend de la structure HTML de RoyaleAPI, on va l'adapter après test)
