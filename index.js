@@ -99,7 +99,7 @@ app.get("/last-deck-by-tag", async (req, res) => {
   }
 });
 
-// recherche dans le ladder (top joueurs Path of Legend) par elo
+// recherche dans le ladder (top 1-10000) par pseudo et/ou elo
 // GET /search-ladder?elo=2664
 app.get("/search-ladder", async (req, res) => {
   try {
@@ -107,39 +107,59 @@ app.get("/search-ladder", async (req, res) => {
       return res.status(500).json({ error: "CLASH_API_TOKEN is not set" });
     }
 
-    const { elo } = req.query;
+    const { name, elo } = req.query;
+    const targetName = name ? name.toLowerCase() : null;
+    const targetElo = elo ? parseInt(elo, 10) : null;
     
-    if (!elo) {
+    if (!targetName && !targetElo) {
       return res.status(400).json({
-        error: "Provide 'elo' as query parameter (e.g., ?elo=2664)"
+        error: "Provide at least 'name' or 'elo' as query parameter"
       });
     }
 
-    const targetElo = parseInt(elo, 10);
-    if (isNaN(targetElo)) {
-      return res.status(400).json({
-        error: "'elo' must be a valid number"
+    // On récupère le ladder global (top joueurs)
+    // L'API retourne ~1000 joueurs par défaut, on va paginer pour aller jusqu'à 10k
+    let allPlayers = [];
+    const maxPlayers = 10000;
+    const pageSize = 1000; // max par requête
+    
+    // On fait plusieurs requêtes pour couvrir le top 10k
+    for (let offset = 0; offset < maxPlayers; offset += pageSize) {
+      const url = `https://api.clashroyale.com/v1/locations/global/rankings/players?limit=${pageSize}`;
+      
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${CLASH_API_TOKEN}`
+        }
       });
-    }
 
-    // on appelle l'API Clash Royale pour le classement Path of Legend
-    const url = "https://api.clashroyale.com/v1/locations/global/pathoflegend/players";
+      const items = response.data?.items || [];
+      if (items.length === 0) break;
 
-    const response = await axios.get(url, {
-      headers: {
-        Authorization: `Bearer ${CLASH_API_TOKEN}`
+      allPlayers = allPlayers.concat(items);
+      
+      // Si on a atteint 10k ou s'il n'y a plus de joueurs, on arrête
+      if (allPlayers.length >= maxPlayers || items.length < pageSize) {
+        break;
       }
-    });
+    }
 
-    const players = response.data?.items || [];
+    // Filtrer selon les critères
+    const matches = allPlayers.filter(p => {
+      const okName = targetName
+        ? (p.name || "").toLowerCase().includes(targetName)
+        : true;
 
-    // on filtre ceux qui ont exactement cet Elo (ou très proche, ±10)
-    const matches = players.filter(p => {
-      return Math.abs(p.trophies - targetElo) <= 10;
+      const okElo = targetElo != null
+        ? Math.abs(p.trophies - targetElo) <= 10
+        : true;
+
+      return okName && okElo;
     });
 
     res.json({
       count: matches.length,
+      totalScanned: allPlayers.length,
       players: matches.map(p => ({
         name: p.name,
         tag: p.tag,
@@ -151,7 +171,7 @@ app.get("/search-ladder", async (req, res) => {
     console.error("Erreur search-ladder:", err.response?.data || err.message);
     res
       .status(err.response?.status || 500)
-      .json(err.response?.data || { error: "Unknown error" });
+      .json(err.response?.data || { error: err.message || "Unknown error" });
   }
 });
 
