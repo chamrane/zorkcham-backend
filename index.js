@@ -199,6 +199,30 @@ app.get("/debug-rankings", async (req, res) => {
   }
 });
 
+// DEBUG: lister les locations disponibles
+app.get("/debug-locations", async (req, res) => {
+  try {
+    if (!CLASH_API_TOKEN) {
+      return res.status(500).json({ error: "CLASH_API_TOKEN is not set" });
+    }
+
+    const url = "https://api.clashroyale.com/v1/locations";
+
+    const response = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${CLASH_API_TOKEN}`
+      }
+    });
+
+    res.json(response.data);
+  } catch (err) {
+    console.error("Erreur debug-locations:", err.response?.data || err.message);
+    res
+      .status(err.response?.status || 500)
+      .json(err.response?.data || { error: err.message || "Unknown error" });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`ZorkCham backend listening on port ${PORT}`);
 });
